@@ -1,0 +1,32 @@
+<!-- REGTEST
+DEPENDENCIES  pippopluto.struct dftb_in.hsd pippopluto.genstruct
+COMMAND(1) dftb+ dftb_in.hsd
+ENDREGTEST -->
+
+<simulation mode="static" verbosity="medium">
+    <output prefix="simulation">
+        <properties stride="1" filename="out">  [ step, potential ] </properties>
+        <trajectory stride="1" filename="pos">  positions{angstrom}  </trajectory>
+    </output>
+    <total_steps> 2000000 </total_steps>
+    <ffsocket name="lmp" mode="unix" pbc="true">
+    <address> driver </address>  <latency> 1e-4</latency>
+    </ffsocket>
+    <system>
+    <initialize nbeads="1">
+        <file mode="xyz"> pippopluto.struct </file>
+    </initialize>
+    <forces>
+        <force forcefield="lmp"> </force>
+    </forces>
+    <motion mode="minimize">
+        <optimizer mode="lbfgs">
+            <tolerances>
+            <energy> 1e-5 </energy>
+            <force> 1e-5 </force>
+            <position> 1e-5 </position>
+            </tolerances>
+        </optimizer>
+    </motion>
+   </system>
+</simulation>

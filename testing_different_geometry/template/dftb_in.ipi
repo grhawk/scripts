@@ -2,23 +2,12 @@ Geometry = GenFormat {
      <<< "pippopluto.genstruct"
 }
 
-# Driver = Ipi {
-# 	Port=80002
-#  	Host="192.168.101.1"
-# 	isUnix = No
-# 	Verbosity = 1
-#    }
-
-Driver = ConjugateGradient {
-    MovedAtoms = {1:-1}
-    MaxForceComponent = 1e-4
-    MaxSteps = 2000
-    OutputPrefix = "geo_end"
-    AppendGeometries = No
-    Constraints = {}
-    LatticeOpt = No
-    ConvergentForcesOnly = Yes
-}
+Driver = Socket {
+    File="driver "
+    Protocol = i-PI{}
+	Verbosity = 1
+    MaxSteps=100000
+   }
 
 Hamiltonian = DFTB{
    ReadInitialCharges = No
@@ -44,6 +33,9 @@ Hamiltonian = DFTB{
       Prefix = /home/petragli/Codes/dftb-dev/SK-parameters/3ob-1-1/
       Separator = "-"
       Suffix = ".skf"
+   }
+   KPointsAndWeights = {
+   0.5 0.5 0.5 1.
    }
    ThirdOrderFull = Yes
    Filling = Fermi{
