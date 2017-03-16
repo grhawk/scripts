@@ -5,11 +5,14 @@ DIR="$(dirname "${BASH_SOURCE[0]}")"
 DIR_STRUCT="${DIR}/struct"
 DIR_DRIVER_RUN="${DIR}/driver_run"
 DIR_TEMPLATE="${DIR}/template"
+DIR_SCRIPTS="$HOME/Codes/scripts/"
 
-DRIVER_TEMPLATE='dftb_in.geop'
-DRIVER='DFTB'
-CONCURRENCY=4
+DRIVER_TEMPLATE='dftb_in.ipi'
+DRIVER='IPI'                 # Available: IPI, DFTB
+IPI_DRIVER='DFTB'            # IPI always need another driver (that must be available here)
+IPI_TEMPLATE='ipi-geop.xml.template' # When using i-pi you need also a driver!
 
+CONCURRENCY=1                  # With i-pi always concurrency 1! (Only one regtest at time!)
 
 function main {
   local processes_running=0
@@ -22,7 +25,8 @@ function main {
   # create driver input files
   echo "Preparing the test..."
   for f in $DIR_STRUCT/test*xyz; do
-    prepare_input_driver $f
+    prepare_input $f
+    exit
   done
   echo "...Done"
 
@@ -50,6 +54,17 @@ function prepare_test {
       which xyz2gen &> /dev/null || let ERR+=1
       which dftb+ &> /dev/null || let ERR+=1
       ;;
+    'IPI')
+      # Since i-pi needs a driver, rerun this function with a different driver:
+      local actual_driver=$DRIVER
+      DRIVER=$IPI_DRIVER
+      prepare_test
+      DRIVER=$actual_driver
+
+      # test if i-pi and i-pi-test are around
+      which i-pi &> /dev/null || let ERR+=1
+      which i-pi-regtest &> /dev/null || let ERR+=1
+      ;;
     *)
       >&2 echo "!E! Driver $DRIVER not implemented in the testing system."
       let ERR+=1
@@ -61,7 +76,7 @@ function prepare_test {
   fi
 }
 
-function prepare_input_driver {
+function prepare_input {
   # Create input files to be used only with the driver
   local ERR=0
   local xyz_file=$1
@@ -82,8 +97,22 @@ function prepare_input_driver {
     'DFTB' )
       gen_file=${xyz_file/.xyz/.gen}
       xyz2gen $xyz_file
+      grep 'CELL' $xyz_file &>/dev/null && $DIR_SCRIPTS/cellerize_genfile/cellerize.py $xyz_file $gen_file
       mv $gen_file $dir_test
-      sed s/'pippopluto.struct'/${filename}.gen/g $DIR_TEMPLATE/$DRIVER_TEMPLATE > $dir_test/dftb_in.hsd
+      sed s/'pippopluto.genstruct'/${filename}.gen/g $DIR_TEMPLATE/$DRIVER_TEMPLATE > $dir_test/dftb_in.hsd
+      ;;
+
+    'IPI' )
+      # Since i-pi needs a driver, rerun this function with a different driver:
+      local actual_driver=$DRIVER
+      DRIVER=$IPI_DRIVER
+      prepare_input $xyz_file
+      DRIVER=$actual_driver
+
+      # Prepare input for i-pi
+      cp $xyz_file $dir_test
+      sed s/'pippopluto.struct'/${filename}.xyz/g $DIR_TEMPLATE/$IPI_TEMPLATE > $dir_test/ipi.xml
+      [[ "$IPI_DRIVER" == "DFTB" ]] &&  sed -i s/'pippopluto.genstruct'/${filename}.gen/g $dir_test/ipi.xml
       ;;
     * )
       >&2 echo "!E! Driver $DRIVER not implemented in the prepare_input_driver function."
@@ -104,13 +133,22 @@ function run_driver {
   local test_dir=$1
   local actual_path=${PWD}
 
-  cd $test_dir
+  cd $test_dir                  # Move to the folder containing the test
   case $DRIVER in
     'DFTB' )
       if [[ ! -f 'dftb.out' ]]; then
         dftb+ &> dftb.out || let DRIVER_FAIL+=1
       fi
-    ;;
+      ;;
+
+    'IPI' )
+      cd $actual_path           # i-PI must be ran in the =root= folder
+      i-pi-regtest --create-reference --folder-run=$DIR/"IPI-REGTESTS" --tests-folder=$DIR_DRIVER_RUN
+      # i-pi-regtest will take care of everything. do not run more than 1!
+      wait
+      exit $?
+      ;;
+
     * )
       >&2 echo "!E! Driver $DRIVER not implemented in the run_driver_only function."
       let ERR+=1
